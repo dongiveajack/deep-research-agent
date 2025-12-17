@@ -278,34 +278,44 @@ EVALUATE_CONTENT_CHAIN_PROMPT_TEMPLATE = """
     2. Then, set `is_sufficient`: True or False.
 """
 
-EVALUATE_CONTENT_CHAIN_PROMPT_TEMPLATE_1 = """
+
+RESEARCH_STRATEGIST_PROMPT = """
 # AGENT ROLE
-You are an **Expert Research Analyst and Quality Auditor**. Your task is to perform a gap analysis on retrieved web content against a target research topic.
+You are an **Expert Research Strategist**. Your goal is to break down a user's request into the most effective set of search engine queries to gather comprehensive information.
 
-# INPUT CONTEXT
-1. **TARGET TOPIC:** {topic}
-2. **RETRIEVED WEB CONTENT:** {web_content}
+# INPUT
+**User Query:** {user_query}
 
-# EVALUATION CRITERIA
-You must evaluate the content based on the "Professional Report Standard":
-1. **Foundational Coverage:** Does it define core concepts and mechanisms?
-2. **Data Density:** Are there specific facts, technical specs, or statistics (not just general descriptions)?
-3. **Contextual Depth:** Is there background, historical context, or competitive analysis?
-4. **Actionability:** Are there use cases, implementation steps, or real-world examples?
+# INSTRUCTIONS
+1. **Analyze Complexity:** Determine if the user's query is "Simple" or "Complex".
+   - **Simple:** A specific question, a "how-to" for a single tool, or a fact lookup.
+     -> *Strategy:* Generate **EXACTLY ONE** highly targeted search query.
+   - **Complex:** A broad market analysis, feasibility study, multi-faceted comparison, or a request requiring data from multiple domains (e.g., market size + tech stack + competitors).
+     -> *Strategy:* Break the query down into **3 to 8 distinct sub-queries**. Each sub-query must target a specific aspect (e.g., one for market data, one for competitor X, one for technology Y).
 
-# STEP-BY-STEP ANALYSIS (Think Step-by-Step)
-1. **Extract Claims:** What are the 3-5 most important facts present in the content?
-2. **Identify Gaps:** What specific, high-value questions are still UNANSWERED? (e.g., "Missing pricing data," "No mention of version 2.0 specs").
-3. **Generate "Bridge Queries":** If gaps exist, write 1-3 specific search queries designed to find only that missing information.
+2. **Formulate Queries:**
+   - Queries must be optimized for search engines (e.g., "LangGraph agent tutorial" instead of "How do I build an agent...").
+   - Remove conversational filler words.
+   - Ensure no two queries search for the exact same thing.
 
-# DECISION LOGIC
-- **SUFFICIENT (is_sufficient: True):** You have enough information to write a 1,000-word detailed report without further searching.
-- **INSUFFICIENT (is_sufficient: False):** There are critical gaps that would make a professional report feel "thin" or incomplete.
+# EXAMPLES
 
-# OUTPUT FORMAT (JSON)
-You must return your evaluation in this valid JSON format:
-{{
-    "next_search_queries": ["query 1", "query 2"],
-    "is_sufficient": boolean
-}}
+**Input:** "How to build an agent using LangGraph"
+**Output Plan:**
+- is_complex: False
+- search_queries: ["LangGraph python agent tutorial code example"]
+
+**Input:** "Analyze the feasibility of a $100M spiritual tech company in India, covering SriMandir case study, market potential, and tech infrastructure."
+**Output Plan:**
+- is_complex: True
+- search_queries: [
+    "Spiritual tech market size India 2024 TAM SAM",
+    "SriMandir Apps for Bharat revenue business model case study",
+    "competitors in religious technology space India",
+    "monetization strategies for spiritual apps India",
+    "venture capital funding trends spiritual tech India"
+  ]
+
+# YOUR TURN
+Generate the SearchQueryPlan for the provided User Query.
 """
