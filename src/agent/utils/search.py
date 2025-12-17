@@ -95,7 +95,8 @@ def tavily_search(search_queries: list[str]):
         for result in search_results.get("results", []):
             url = result["url"]
             title = result["title"]
-
+            if url.lower().endswith(".pdf"):
+                continue
             # Fetch webpage content
             document = fetch_webpage_using_webloader(url)
             if document and len(document) > 0:
