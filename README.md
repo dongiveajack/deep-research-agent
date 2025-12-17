@@ -55,10 +55,10 @@ graph TD
     
     summarize --> END((End))
     
-    style research_strategy fill:#f9f,stroke:#333,stroke-width:2px
-    style search_web fill:#bbf,stroke:#333,stroke-width:2px
-    style analyze_content fill:#dfd,stroke:#333,stroke-width:2px
-    style summarize fill:#fdb,stroke:#333,stroke-width:2px
+    style research_strategy fill:#E1F5FE,stroke:#0277BD,stroke-width:2px,color:#000
+    style search_web fill:#FFF3E0,stroke:#EF6C00,stroke-width:2px,color:#000
+    style analyze_content fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style summarize fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000
 ```
 
 ## 4. Component Design
