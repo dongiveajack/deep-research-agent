@@ -1,61 +1,103 @@
-# New LangGraph Project
+# System Design Document: Research Agent
 
-[![CI](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/unit-tests.yml)
-[![Integration Tests](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/integration-tests.yml)
+## 1. Executive Summary
+The Research Agent is an intelligent system designed to conduct deep, automated research on a given topic. Built using LangGraph, it orchestrates a workflow of specialized agents to generate search queries, gather information from the web, key claims and gaps, and synthesize a comprehensive report.
 
-This template demonstrates a simple application implemented using [LangGraph](https://github.com/langchain-ai/langgraph), designed for showing how to get started with [LangGraph Server](https://langchain-ai.github.io/langgraph/concepts/langgraph_server/#langgraph-server) and using [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/), a visual debugging IDE.
+## 2. System Architecture
 
-<div align="center">
-  <img src="./static/studio_ui.png" alt="Graph view in LangGraph studio UI" width="75%" />
-</div>
+### 2.1 High-Level Overview
+The system follows a state-based graph architecture (StateGraph) where specialized nodes perform distinct tasks. The workflow is iterative, allowing the agent to refine its research until sufficient information is gathered.
 
-The core logic defined in `src/agent/graph.py`, showcases an single-step application that responds with a fixed string and the configuration provided.
+### 2.2 Core Technologies
+- **LangGraph**: Orchestrates the agent workflow and state management.
+- **LangChain**: Provides the framework for LLM interactions and chains.
+- **Ollama**: Interfaces with local LLMs (DeepSeek-R1) for reasoning and content generation.
+- **Tavily / DuckDuckGo**: External search engines for web data retrieval.
+- **Pydantic**: data validation and structured output parsing.
 
-You can extend this graph to orchestrate more complex agentic workflows that can be visualized and debugged in LangGraph Studio.
+## 3. Data Flow & State Management
 
-## Getting Started
-
-1. Install dependencies, along with the [LangGraph CLI](https://langchain-ai.github.io/langgraph/concepts/langgraph_cli/), which will be used to run the server.
-
-```bash
-cd path/to/your/app
-pip install -e . "langgraph-cli[inmem]"
+### 3.1 Agent State
+The system maintains a shared state object (`AgentState`) passed between nodes:
+```python
+class AgentState(TypedDict):
+    topic: str                  # Original user query/topic
+    generated_queries: list[str]# Current list of search queries to execute
+    past_queries: list[str]     # History of queries to avoid duplication
+    source_documents: list[dict]# Accumulated research content
+    final_summary: str          # The generated final report
+    evaluation_result: bool     # Outcome of the content sufficiency check
 ```
 
-2. (Optional) Customize the code and project as needed. Create a `.env` file if you need to use secrets.
+### 3.2 Workflow (The Graph)
+1.  **Start → Research Strategy Node**: Analyzes the user's topic to determine complexity and generates an initial query plan (simple vs. complex).
+2.  **Research Strategy Node → Search Web Node**: Executes the planned search queries using external search tools.
+3.  **Search Web Node → Analyze Content Node**:
+    *   Formats the retrieved web content.
+    *   Evaluates if the information is sufficient to write a full report.
+    *   Identifies knowledge gaps and missing details.
+4.  **Analyze Content Node (Conditional Edge)**:
+    *   **If Sufficient (`evaluation_result` is True)** → Transition to **Summarization Sources Node**.
+    *   **If Insufficient** → Loop back to **Search Web Node** (or potentially a query refinement step, though currently, the graph loops back to `search_web_node` potentially reusing queries or needing a dedicated query generator in the loop). *Note: The current graph implementation loops `search_web_node` directly or via a check. The provided code shows a conditional edge from `analyze_content_node` to either `summarization_sources` or `search_web_node` based on `evaluation_result`.*
+5.  **Summarization Sources Node**: Synthesizes all gathered content into a final markdown report.
+6.  **End**: Output the final summary.
 
-```bash
-cp .env.example .env
+### 3.3 Visual Workflow
+```mermaid
+graph TD
+    START((Start)) --> research_strategy[Research Strategy Node]
+    research_strategy --> search_web[Search Web Node]
+    search_web --> analyze_content[Analyze Content Node]
+    
+    analyze_content -->|Is Content Sufficient?| check{Check Result}
+    check -->|Yes| summarize[Summarization Sources Node]
+    check -->|No| search_web
+    
+    summarize --> END((End))
+    
+    style research_strategy fill:#f9f,stroke:#333,stroke-width:2px
+    style search_web fill:#bbf,stroke:#333,stroke-width:2px
+    style analyze_content fill:#dfd,stroke:#333,stroke-width:2px
+    style summarize fill:#fdb,stroke:#333,stroke-width:2px
 ```
 
-If you want to enable LangSmith tracing, add your LangSmith API key to the `.env` file.
+## 4. Component Design
 
-```text
-# .env
-LANGSMITH_API_KEY=lsv2...
-```
+### 4.1 Nodes (`src/agent/nodes/`)
+*   **`research_strategy_node`**:
+    *   **Input**: `topic`
+    *   **Process**: Uses `Research Strategist Chain` to classify the query complexity and generate an optimized `SearchQueryPlan`.
+    *   **Output**: Updates `generated_queries`.
 
-3. Start the LangGraph Server.
+*   **`search_web_node`**:
+    *   **Input**: `generated_queries`
+    *   **Process**: Calls `tavily_search` (or DDG) to fetch web pages. Handles simple pdf filtering and uses `WebBaseLoader` for content extraction.
+    *   **Output**: Updates `source_documents`.
 
-```shell
-langgraph dev
-```
+*   **`analyze_content_node`**:
+    *   **Input**: `source_documents`, `topic`
+    *   **Process**: Uses `Evaluate Content Chain` to rigorous gap analysis. It checks for definitions, data density, context, and actionability.
+    *   **Output**: Updates `evaluation_result`.
 
-For more information on getting started with LangGraph Server, [see here](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/).
+*   **`summarization_sources`**:
+    *   **Input**: `source_documents`, `topic`
+    *   **Process**: Uses `Summarize Sources Chain` to write a structured, multi-section research report with citations.
+    *   **Output**: Updates `final_summary`.
 
-## How to customize
+### 4.2 Chains (`src/agent/chains/`)
+*   **`Research Strategist Chain`**: Decomposes queries into sub-queries for complex topics.
+*   **`Evaluate Content Chain`**: Structured evaluation (Pydantic model) returning `is_sufficient` and `reasoning`.
+*   **`Generate Query Chain`**: (Legacy/Alternative) Generates queries based on past context.
+*   **`Summarize Sources Chain`**: Standard context-stuffing generic summarizer.
 
-1. **Define runtime context**: Modify the `Context` class in the `graph.py` file to expose the arguments you want to configure per assistant. For example, in a chatbot application you may want to define a dynamic system prompt or LLM to use. For more information on runtime context in LangGraph, [see here](https://langchain-ai.github.io/langgraph/agents/context/?h=context#static-runtime-context).
+### 4.3 Utilities (`src/agent/utils/`)
+*   **`search.py`**: Wrappers for Tavily and DuckDuckGo APIs. Includes error handling for web scrappers (`fetch_webpage_using_webloader`).
+*   **`common.py`**: Helper functions to format documents for LLM context.
 
-2. **Extend the graph**: The core logic of the application is defined in [graph.py](./src/agent/graph.py). You can modify this file to add new nodes, edges, or change the flow of information.
+## 5. External Interface
+*   **Input**: A string representing the research topic.
+*   **Output**: A dictionary containing the `final_summary` (Markdown string).
 
-## Development
-
-While iterating on your graph in LangGraph Studio, you can edit past state and rerun your app from previous states to debug specific nodes. Local changes will be automatically applied via hot reload.
-
-Follow-up requests extend the same thread. You can create an entirely new thread, clearing previous history, using the `+` button in the top right.
-
-For more advanced features and examples, refer to the [LangGraph documentation](https://langchain-ai.github.io/langgraph/). These resources can help you adapt this template for your specific use case and build more sophisticated conversational agents.
-
-LangGraph Studio also integrates with [LangSmith](https://smith.langchain.com/) for more in-depth tracing and collaboration with teammates, allowing you to analyze and optimize your chatbot's performance.
-
+## 6. Future Improvements (Potential)
+*   **Dynamic Loop**: The current `analyze_content_node` -> `search_web_node` loop might need a `generate_new_queries_node` in between to create *new* queries based on the identified gaps, rather than just re-running search (unless `generated_queries` is updated inside `analyze_content` or a separate step).
+*   **Memory Integration**: Better tracking of `past_queries` to ensure diverse search angles.
