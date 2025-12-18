@@ -1,0 +1,8 @@
+{
+  "topic": "explain about photon?"
+}
+
+{
+  "start_research": "approved",
+  "generated_queries": ["who is narendra modi?"]
+}

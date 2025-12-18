@@ -274,7 +274,7 @@ EVALUATE_CONTENT_CHAIN_PROMPT_TEMPLATE = """
         - **Knowledge Gaps:** You have identified specific questions that are NOT answered by the text.
 
     ## OUTPUT
-    1. First, provide what is missing in the form of search query which could be used to search web to gather the missing information.
+    1. First, provide what is missing in the form of search queries which could be used to search web to gather the missing information.
     2. Then, set `is_sufficient`: True or False.
 """
 

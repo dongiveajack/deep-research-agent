@@ -8,3 +8,4 @@ class AgentState(TypedDict):
     source_documents: list[dict[str, str]]
     final_summary: str
     evaluation_result: bool
+    start_research: bool
