@@ -10,7 +10,6 @@ def analyze_content_node(state: AgentState):
         'topic': state['topic'],
         'web_content': format_sources_for_llm(state['source_documents']),
     }
-    print(f"EVALUATION NODE INPUT: {input}")
     result: ContentEvaluation = evaluate_content_chain().invoke(input)
     return {
         'evaluation_result': result.is_sufficient,

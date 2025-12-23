@@ -12,6 +12,7 @@ llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
 
 class ContentEvaluation(BaseModel):
     is_sufficient: bool = Field(description="Whether the content is sufficient to write a detailed report")
+    reasoning: str = Field(description="Brief explanation of why the content was deemed sufficient or insufficient")
     next_search_queries: List[str] = Field(description="The next search queries to gather information from the web")
 
 

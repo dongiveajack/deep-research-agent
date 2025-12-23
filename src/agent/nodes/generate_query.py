@@ -31,7 +31,8 @@ def generate_query_node(state: AgentState) -> dict[str, Any]:
 
 def research_strategy_node(state: AgentState) -> dict[str, Any]:
     chain_input = {
-        'user_query': state['topic']
+        'user_query': state['topic'],
+        'context': state.get('memory_context', '')
     }
     query_plan: SearchQueryPlan = research_strategist_chain().invoke(chain_input)
     return {
