@@ -58,29 +58,29 @@ def save_summary(topic: str, summary: str, description: str):
         # Re-raise to let the graph know it failed
         raise
     
-    # 2. Update JSON Index
-    index = []
-    if os.path.exists(INDEX_PATH):
-        try:
-            with open(INDEX_PATH, "r") as f:
-                index = json.load(f)
-        except Exception:
-            index = []
-            
-    # Add new entry
-    index.append({
-        "topic": topic,
-        "description": description
-    })
-    
-    # Ensure parent directory exists
-    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
-    with open(INDEX_PATH, "w") as f:
-        json.dump(index, f, indent=2)
+    # # 2. Update JSON Index
+    # index = []
+    # if os.path.exists(INDEX_PATH):
+    #     try:
+    #         with open(INDEX_PATH, "r") as f:
+    #             index = json.load(f)
+    #     except Exception:
+    #         index = []
+    #
+    # # Add new entry
+    # index.append({
+    #     "topic": topic,
+    #     "description": description
+    # })
+    #
+    # # Ensure parent directory exists
+    # os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
+    # with open(INDEX_PATH, "w") as f:
+    #     json.dump(index, f, indent=2)
 
     return {}
 
-def retrieve_context(query: str, k: int = 1) -> str:
+def retrieve_context(query: str, k: int = 3) -> str:
     """Retrieve relevant past research context."""
     vector_store = get_vector_store()
     results = vector_store.similarity_search(query, k=k)

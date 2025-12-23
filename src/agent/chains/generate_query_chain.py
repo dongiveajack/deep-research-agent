@@ -1,13 +1,16 @@
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
+from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 from src.agent.prompts.prompts import GENERATE_QUERY_CHAIN_PROMPT_TEMPLATE, GENERATE_QUERY_CHAIN_PROMPT_TEMPLATE_1
 
 load_dotenv()
 
-llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
-
+# llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
+# llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
+llm = ChatOpenAI(model='gpt-4.1-mini', temperature=0)
 
 class GeneratedQueries(BaseModel):
     queries: list[str]

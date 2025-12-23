@@ -1,7 +1,9 @@
 from typing import List
 
 from langchain_core.prompts import PromptTemplate
+from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from src.agent.prompts.prompts import RESEARCH_STRATEGIST_PROMPT
@@ -20,13 +22,15 @@ class SearchQueryPlan(BaseModel):
         description="The list of 1 to 5 optimized search queries to execute."
     )
 
-llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
+
+# llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
+# llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
+llm = ChatOpenAI(model='gpt-4o-mini', temperature=0)
 
 def research_strategist_chain():
     system_prompt = PromptTemplate.from_template(RESEARCH_STRATEGIST_PROMPT)
     query_chain = system_prompt | llm.with_structured_output(SearchQueryPlan)
     return query_chain
-
 
 # if __name__ == '__main__':
 #     chain = research_strategist_chain()

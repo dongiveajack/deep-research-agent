@@ -1,14 +1,17 @@
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
+from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from src.agent.prompts.prompts import EVALUATE_CONTENT_CHAIN_PROMPT_TEMPLATE
 from typing import List
 
 load_dotenv()
 
-llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
-
+# llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
+# llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
+llm = ChatOpenAI(model='gpt-4.1-mini', temperature=0)
 
 class ContentEvaluation(BaseModel):
     is_sufficient: bool = Field(description="Whether the content is sufficient to write a detailed report")

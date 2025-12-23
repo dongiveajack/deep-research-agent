@@ -7,6 +7,7 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 
 from src.agent.nodes.retrieve_memory_node import retrieve_memory_node
+from src.agent.nodes.review_research_node import review_research_node
 from src.agent.nodes.router_node import router_node
 from src.agent.nodes.evaluate_content import analyze_content_node
 from src.agent.nodes.generate_query import generate_query_node, research_strategy_node
@@ -32,6 +33,7 @@ graph = (
     StateGraph(AgentState)
     .add_node(router_node)
     .add_node(retrieve_memory_node)
+    .add_node(review_research_node)
     .add_node(research_strategy_node)
     .add_node(search_web_node)
     .add_node(analyze_content_node)
@@ -47,7 +49,8 @@ graph = (
         }
     )
     .add_edge("retrieve_memory_node", "research_strategy_node")
-    .add_edge("research_strategy_node", "search_web_node")
+    .add_edge("research_strategy_node", "review_research_node")
+    .add_edge("review_research_node", "search_web_node")
     .add_edge("search_web_node", 'analyze_content_node')
     .add_conditional_edges(
         "analyze_content_node",

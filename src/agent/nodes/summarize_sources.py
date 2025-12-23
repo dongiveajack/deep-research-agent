@@ -12,11 +12,9 @@ def summarization_sources(state: AgentState):
 
     result = summarize_sources_chain().invoke({
         'topic': topic,
-        'memory_context': state.get('memory_context', ''),
         'source_documents': format_sources_for_llm(sources)
     })
 
     return {
-        'final_summary': result.final_summary,
-        'summary_description': result.description,
+        'final_summary': result
     }
