@@ -262,11 +262,19 @@ SOURCE DOCUMENTS
 ────────────────────────────────────────────
 PRIMARY OBJECTIVE
 ────────────────────────────────────────────
-Produce a long-form, in-depth research report that:
-- Fully explores the topic from all relevant and necessary angles
-- Synthesizes information across all source_documents into a coherent whole
-- Uses a dynamic, topic-dependent structure (NO fixed template)
-- Reads like a high-quality expert research paper or whitepaper
+- final_topic:
+  A clean, normalized version of the research topic suitable for indexing.
+
+- memory_summary:
+  A STRICT 1–2 sentence concise summary capturing the essence of the research,
+  suitable for long-term memory recall. No formatting, no bullet points.
+  
+- final_summary
+    Produce a long-form, in-depth research report that:
+    - Fully explores the topic from all relevant and necessary angles
+    - Synthesizes information across all source_documents into a coherent whole
+    - Uses a dynamic, topic-dependent structure (NO fixed template)
+    - Reads like a high-quality expert research paper or whitepaper
 
 ────────────────────────────────────────────
 CRITICAL RULE: FACTUAL GROUNDING
@@ -341,7 +349,7 @@ REFERENCING & ATTRIBUTION
 - Do NOT fabricate or infer sources
 
 ────────────────────────────────────────────
-OUTPUT FORMAT
+OUTPUT FORMAT for final_summary
 ────────────────────────────────────────────
 - Title: Precise and aligned with the topic
 - Introduction:
@@ -455,14 +463,14 @@ Generate the SearchQueryPlan for the provided User Query.
 
 MEMORY_ROUTER_PROMPT = """
 # AGENT ROLE
-You are an **Intelligent Memory Router**. Your job is to decide if a new research topic overlaps with previous research topics stored in our database.
+You are an **Intelligent Memory Router**. Your job is to decide if a new research topic overlaps with previous research topics stored in our long term memory.
 
 # INPUT
 **User Query:** {user_query}
-**Previous Research Topics:** {research_index}
+**Previous Research Topics and their short summary:** {long_term_memory}
 
 # INSTRUCTIONS
-1. Analyze the `User Query` and compare it with the `Previous Research Topics`.
+1. Analyze the `User Query` and compare it with the `Previous Research Topics and their short summary`.
 2. Determine if the database likely contains foundational or related information that would be useful for the new query.
 3. If the user query is about something completely new or unrelated to the list, set `use_memory` to False.
 4. If there is a potential overlap or background info available, set `use_memory` to True.

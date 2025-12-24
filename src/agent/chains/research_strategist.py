@@ -25,7 +25,7 @@ class SearchQueryPlan(BaseModel):
 
 # llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
 # llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
-llm = ChatOpenAI(model='gpt-4o-mini', temperature=0)
+llm = ChatOpenAI(model='gpt-5-nano', temperature=0)
 
 def research_strategist_chain():
     system_prompt = PromptTemplate.from_template(RESEARCH_STRATEGIST_PROMPT)

@@ -14,7 +14,7 @@ def review_research_node(state: AgentState):
     if user_response['start_research'] == 'Approved':
         return {
             'start_research': True,
-            'generated_queries': user_response['generated_queries']
+            'generated_queries': user_response.get('generated_queries') or state.get('generated_queries')
         }
     else:
         return {

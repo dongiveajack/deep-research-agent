@@ -10,7 +10,7 @@ load_dotenv()
 
 # llm = ChatOllama(model='deepseek-r1:8b', reasoning=True, temperature=0)
 # llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
-llm = ChatOpenAI(model='gpt-4.1-mini', temperature=0)
+llm = ChatOpenAI(model='gpt-5-nano', temperature=1)
 
 class GeneratedQueries(BaseModel):
     queries: list[str]
