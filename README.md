@@ -1,103 +1,144 @@
-# System Design Document: Research Agent
+# Deep Research Agent
 
-## 1. Executive Summary
-The Research Agent is an intelligent system designed to conduct deep, automated research on a given topic. Built using LangGraph, it orchestrates a workflow of specialized agents to generate search queries, gather information from the web, key claims and gaps, and synthesize a comprehensive report.
+An advanced, autonomous research system built with **LangGraph**, designed to conduct deep-dive investigations into any topic. It features a multi-step iterative workflow, long-term memory, human-in-the-loop approval, and semantic indexing.
 
-## 2. System Architecture
+## 🚀 Key Features
 
-### 2.1 High-Level Overview
-The system follows a state-based graph architecture (StateGraph) where specialized nodes perform distinct tasks. The workflow is iterative, allowing the agent to refine its research until sufficient information is gathered.
+- **Iterative Research Loop**: Automatically evaluates research quality and loops back for more information if gaps are found.
+- **Human-In-The-Loop (HIL)**: Uses LangGraph `interrupt` to allow human approval/modification of research strategies and search queries before execution.
+- **Long-Term Memory**: Persists research summaries across sessions using the LangGraph Server Store with **Semantic Search** (indexed via OpenAI).
+- **Hybrid Vector Storage**: 
+  - **Platform Store**: For long-term retrieval across different threads.
+  - **Local Chroma DB**: For session-specific document retrieval using Ollama embeddings.
+- **Advanced Tools**: Integrates with Tavily and DuckDuckGo for real-time web intelligence.
 
-### 2.2 Core Technologies
-- **LangGraph**: Orchestrates the agent workflow and state management.
-- **LangChain**: Provides the framework for LLM interactions and chains.
-- **Ollama**: Interfaces with local LLMs (DeepSeek-R1) for reasoning and content generation.
-- **Tavily / DuckDuckGo**: External search engines for web data retrieval.
-- **Pydantic**: data validation and structured output parsing.
+---
 
-## 3. Data Flow & State Management
+## 🏗️ System Architecture
 
-### 3.1 Agent State
-The system maintains a shared state object (`AgentState`) passed between nodes:
-```python
-class AgentState(TypedDict):
-    topic: str                  # Original user query/topic
-    generated_queries: list[str]# Current list of search queries to execute
-    past_queries: list[str]     # History of queries to avoid duplication
-    source_documents: list[dict]# Accumulated research content
-    final_summary: str          # The generated final report
-    evaluation_result: bool     # Outcome of the content sufficiency check
-```
+### High-Level Workflow
+The agent follows a sophisticated graph-based state machine:
 
-### 3.2 Workflow (The Graph)
-1.  **Start → Research Strategy Node**: Analyzes the user's topic to determine complexity and generates an initial query plan (simple vs. complex).
-2.  **Research Strategy Node → Search Web Node**: Executes the planned search queries using external search tools.
-3.  **Search Web Node → Analyze Content Node**:
-    *   Formats the retrieved web content.
-    *   Evaluates if the information is sufficient to write a full report.
-    *   Identifies knowledge gaps and missing details.
-4.  **Analyze Content Node (Conditional Edge)**:
-    *   **If Sufficient (`evaluation_result` is True)** → Transition to **Summarization Sources Node**.
-    *   **If Insufficient** → Loop back to **Search Web Node** (or potentially a query refinement step, though currently, the graph loops back to `search_web_node` potentially reusing queries or needing a dedicated query generator in the loop). *Note: The current graph implementation loops `search_web_node` directly or via a check. The provided code shows a conditional edge from `analyze_content_node` to either `summarization_sources` or `search_web_node` based on `evaluation_result`.*
-5.  **Summarization Sources Node**: Synthesizes all gathered content into a final markdown report.
-6.  **End**: Output the final summary.
+1.  **Memory Router**: Searches the platform store for previous research on the topic.
+2.  **Research Strategy**: Decomposes the topic into a search query plan based on complexity.
+3.  **Human Review (Interrupt)**: Pauses execution for human approval of the research plan and queries.
+4.  **Web Search**: Executes queries via Tavily/DDG and extracts content from relevant web pages.
+5.  **Quality Evaluation**: A dedicated node analyzes gathered content against the original goal to identify knowledge gaps.
+6.  **Summarization**: Synthesizes all findings into a structured Markdown report with citations.
+7.  **Memory Save**: Indexes the final research in long-term memory for future retrieval.
 
-### 3.3 Visual Workflow
+### Visual Graph
 ```mermaid
 graph TD
-    START((Start)) --> research_strategy[Research Strategy Node]
-    research_strategy --> search_web[Search Web Node]
-    search_web --> analyze_content[Analyze Content Node]
+    START((Start)) --> Router[Router Node]
+    Router -->|Use Memory?| Retrieve[Retrieve Memory]
+    Router -->|New Topic| Strategy[Research Strategy]
     
-    analyze_content -->|Is Content Sufficient?| check{Check Result}
-    check -->|Yes| summarize[Summarization Sources Node]
-    check -->|No| search_web
+    Retrieve --> Strategy
+    Strategy --> Review{{Human Review / Interrupt}}
     
-    summarize --> END((End))
+    Review -->|Approved| Search[Web Search Node]
+    Search --> Analyze[Analyze Content]
     
-    style research_strategy fill:#E1F5FE,stroke:#0277BD,stroke-width:2px,color:#000
-    style search_web fill:#FFF3E0,stroke:#EF6C00,stroke-width:2px,color:#000
-    style analyze_content fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
-    style summarize fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000
+    Analyze -->|Gap Found| Search
+    Analyze -->|Sufficient| Summarize[Summarize Sources]
+    
+    Summarize --> Save[Save Context / Memory]
+    Save --> END((End))
+    
+    style Review fill:#f9f,stroke:#333,stroke-width:2px
+    style Analyze fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
+    style Search fill:#e1f5fe,stroke:#01579b,stroke-width:2px
 ```
 
-## 4. Component Design
+---
 
-### 4.1 Nodes (`src/agent/nodes/`)
-*   **`research_strategy_node`**:
-    *   **Input**: `topic`
-    *   **Process**: Uses `Research Strategist Chain` to classify the query complexity and generate an optimized `SearchQueryPlan`.
-    *   **Output**: Updates `generated_queries`.
+## 🛠️ Components
 
-*   **`search_web_node`**:
-    *   **Input**: `generated_queries`
-    *   **Process**: Calls `tavily_search` (or DDG) to fetch web pages. Handles simple pdf filtering and uses `WebBaseLoader` for content extraction.
-    *   **Output**: Updates `source_documents`.
+### 1. Nodes (`src/agent/nodes/`)
+- **`router_node`**: Uses semantic search to decide if we should leverage past research.
+- **`review_research_node`**: Implements the `interrupt` logic for approval.
+- **`evaluate_content`**: A Pydantic-driven node that performs gap analysis.
+- **`save_context_node`**: Handles dual-writing to the Platform Store and local Chroma DB.
 
-*   **`analyze_content_node`**:
-    *   **Input**: `source_documents`, `topic`
-    *   **Process**: Uses `Evaluate Content Chain` to rigorous gap analysis. It checks for definitions, data density, context, and actionability.
-    *   **Output**: Updates `evaluation_result`.
+### 2. Memory System
+The system utilizes LangGraph's advanced `BaseStore` with the following `langgraph.json` configuration:
+```json
+"store": {
+  "index": {
+    "embed": "openai:text-embedding-3-small", 
+    "fields": ["summary", "first_name", "last_name"]
+  }
+}
+```
 
-*   **`summarization_sources`**:
-    *   **Input**: `source_documents`, `topic`
-    *   **Process**: Uses `Summarize Sources Chain` to write a structured, multi-section research report with citations.
-    *   **Output**: Updates `final_summary`.
+---
 
-### 4.2 Chains (`src/agent/chains/`)
-*   **`Research Strategist Chain`**: Decomposes queries into sub-queries for complex topics.
-*   **`Evaluate Content Chain`**: Structured evaluation (Pydantic model) returning `is_sufficient` and `reasoning`.
-*   **`Generate Query Chain`**: (Legacy/Alternative) Generates queries based on past context.
-*   **`Summarize Sources Chain`**: Standard context-stuffing generic summarizer.
+## ⚙️ Configuration & Setup
 
-### 4.3 Utilities (`src/agent/utils/`)
-*   **`search.py`**: Wrappers for Tavily and DuckDuckGo APIs. Includes error handling for web scrappers (`fetch_webpage_using_webloader`).
-*   **`common.py`**: Helper functions to format documents for LLM context.
+### Prerequisites
+- Python 3.10+
+- [LangGraph CLI](https://github.com/langchain-ai/langgraph-cli)
+- [Ollama](https://ollama.com/) (running locally)
 
-## 5. External Interface
-*   **Input**: A string representing the research topic.
-*   **Output**: A dictionary containing the `final_summary` (Markdown string).
+### Environment Variables
+Create a `.env` file:
+```bash
+# LLM Providers
+OPENAI_API_KEY=sk-...
+GROQ_API_KEY=gsk-...
 
-## 6. Future Improvements (Potential)
-*   **Dynamic Loop**: The current `analyze_content_node` -> `search_web_node` loop might need a `generate_new_queries_node` in between to create *new* queries based on the identified gaps, rather than just re-running search (unless `generated_queries` is updated inside `analyze_content` or a separate step).
-*   **Memory Integration**: Better tracking of `past_queries` to ensure diverse search angles.
+# Search Tools
+TAVILY_API_KEY=tvly-...
+
+# Local Embeddings (Ollama)
+OLLAMA_MODEL=nomic-embed-text:latest
+```
+
+### Installation
+```bash
+pip install -e .
+```
+
+### Running the Agent
+To start the LangGraph development server:
+```bash
+langgraph dev
+```
+
+---
+
+## 📄 Implementation Details
+
+### 1. Advanced State Management
+The `AgentState` uses LangGraph's **Reducers** to handle information accumulation during the iterative loop:
+- **`past_queries`**: Uses `Annotated[list[str], operator.add]` to maintain a full history of all search terms tried across loops, preventing redundant work.
+- **`source_documents`**: Uses `operator.add` to append new web content snippets to the existing knowledge base without overwriting previous findings.
+
+### 2. Structured Intelligence (Pydantic)
+The agent relies on structured output for deterministic control flow:
+- **`SearchQueryPlan`**: Classifies request complexity and generates an optimized list of queries.
+- **`ContentEvaluation`**: Performs a rigorous check for "definitions, data density, context, and actionability." If insufficient, it provides a list of `next_search_queries` to fill the identified gaps.
+
+### 3. Hybrid Memory & Indexing
+The system implements a dual-layer memory strategy:
+- **LangGraph Store (Persistent)**: Uses the `runtime.store` for cross-session long-term memory. It is semantically indexed via `openai:text-embedding-3-small`.
+- **Local Chroma DB**: Used for high-speed, session-specific RAG (Retrieval-Augmented Generation). It utilizes `OllamaEmbeddings` (`nomic-embed-text`) to chunk and index full summaries for local retrieval.
+
+### 4. Human-In-The-Loop (HIL)
+Security and quality are maintained through the `interrupt` pattern:
+- The graph pauses at the `review_research_node`.
+- It exposes the proposed search queries and research strategy to the user.
+- The user can **Approve**, **Reject**, or **Modify** the queries before the agent proceeds to the expensive web search phase.
+
+### 5. Web Intelligence
+- **Tavily Search**: Optimized for LLM consumption, returning clean snippets and page content.
+- **DuckDuckGo**: Fallback search engine for enhanced reliability.
+- **Filtering**: Intelligent filtering of PDF links and non-textual assets to ensure data quality.
+
+---
+
+## 🔮 Future Roadmap
+- [ ] Integration with local PDF/Document processing.
+- [ ] Multi-agent collaboration for deeper domain specialization.
+- [ ] Direct export to Notion/Google Docs.

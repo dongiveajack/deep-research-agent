@@ -1,13 +1,9 @@
 from dotenv import load_dotenv
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from src.agent.prompts.prompts import SUMMARIZE_SOURCES_CHAIN_PROMPT_TEMPLATE_2, \
-    SUMMARIZE_SOURCES_CHAIN_PROMPT_TEMPLATE_3
+from src.agent.prompts.prompts import SUMMARIZE_SOURCES_CHAIN_PROMPT_TEMPLATE_3
 
 load_dotenv()
 
