@@ -45,10 +45,6 @@ graph TD
     
     Summarize --> Save[Save Context / Memory]
     Save --> END((End))
-    
-    style Review fill:#f9f,stroke:#333,stroke-width:2px
-    style Analyze fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    style Search fill:#e1f5fe,stroke:#01579b,stroke-width:2px
 ```
 
 ---
@@ -86,7 +82,6 @@ Create a `.env` file:
 ```bash
 # LLM Providers
 OPENAI_API_KEY=sk-...
-GROQ_API_KEY=gsk-...
 
 # Search Tools
 TAVILY_API_KEY=tvly-...
