@@ -78,6 +78,7 @@ export function ChatInterface({ threadId }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingText, setLoadingText] = useState('Thinking...');
     const [interrupt, setInterrupt] = useState(null);
     const bottomRef = useRef(null);
 
@@ -88,16 +89,18 @@ export function ChatInterface({ threadId }) {
         const fetchState = async () => {
             try {
                 const state = await client.threads.getState(threadId);
-                // Process state to build partial message history
-                // This is simplified: in a real app check history for all "topics" and "findings"
                 const msgs = [];
-                if (state.values?.topic) {
-                    msgs.push({ type: 'human', content: state.values.topic });
+                if (state.values?.messages && state.values.messages.length > 0) {
+                    state.values.messages.forEach(m => {
+                        // Handle langchain message objects (they might be serialized or real objects)
+                        const role = m.type === 'human' || m.role === 'user' ? 'human' : 'ai';
+                        const content = m.content || m.text;
+                        if (content) {
+                            msgs.push({ type: role, content: content });
+                        }
+                    });
+                    setMessages(msgs);
                 }
-                if (state.values?.final_summary) {
-                    msgs.push({ type: 'ai', content: state.values.final_summary });
-                }
-                setMessages(msgs);
 
                 // Check for interrupts
                 if (state.tasks && state.tasks.length > 0) {
@@ -126,10 +129,11 @@ export function ChatInterface({ threadId }) {
         setIsLoading(true);
         setInterrupt(null);
         if (!isResume) {
-            // Optimistic add user message
-            setMessages(prev => [...prev, { type: 'human', content: input }]);
+            // Optimistic add user message with a marker for the current turn
+            setMessages(prev => [...prev, { type: 'human', content: input, turnBoundary: true }]);
             setInput('');
         }
+        setLoadingText('Thinking...');
 
         try {
             const stream = client.runs.stream(
@@ -141,17 +145,32 @@ export function ChatInterface({ threadId }) {
             for await (const event of stream) {
                 if (event.event === 'values') {
                     const values = event.data;
-                    // Update last AI message or add one
-                    if (values.final_summary) {
+
+                    // Update loading text
+                    if (values.next_node === 'research') {
+                        setLoadingText('Researching...');
+                    } else if (values.next_node === 'conversation') {
+                        setLoadingText('Thinking...');
+                    }
+
+                    // Check if we have new messages
+                    if (values.messages && values.messages.length > 0) {
                         setMessages(prev => {
-                            const msgs = [...prev];
-                            const lastMsg = msgs[msgs.length - 1];
-                            if (lastMsg && lastMsg.type === 'ai') {
-                                lastMsg.content = values.final_summary;
-                                return [...msgs];
-                            } else {
-                                return [...msgs, { type: 'ai', content: values.final_summary }];
-                            }
+                            const newMsgs = [];
+                            values.messages.forEach(m => {
+                                const role = m.type === 'human' || m.role === 'user' ? 'human' : 'ai';
+                                const content = m.content || m.text;
+                                if (content) {
+                                    newMsgs.push({ type: role, content: content });
+                                }
+                            });
+                            // Simple merge: mostly replacing with server state as it's the source of truth for 'values' mode
+                            // But we might want to keep the local optimistic human message if it hasn't round-tripped yet? 
+                            // Actually, 'values' usually gives the full state. If we trust it, we can just replace.
+                            // BUT, visually we want to avoid flickering. 
+                            // Let's stick to the previous pattern of updating the last AI message if we can identifying it from 'messages'
+
+                            return newMsgs;
                         });
                     }
                 }
@@ -175,7 +194,9 @@ export function ChatInterface({ threadId }) {
 
     const handleSend = () => {
         if (!input.trim()) return;
-        streamRun({ input: { topic: input }, streamMode: "values" }); // Note: sending 'topic' as per AgentState
+        setLoadingText('Thinking...');
+        // Sending as a message to support multi-turn and supervisor logic
+        streamRun({ input: { messages: [{ role: "user", content: input }] }, streamMode: "values" });
     };
 
     const handleInterruptResponse = (response) => {
@@ -193,7 +214,7 @@ export function ChatInterface({ threadId }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 scroll-smooth">
                 <div className="max-w-5xl mx-auto space-y-6">
                     {messages.length === 0 && !isLoading && !interrupt ? (
                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 opacity-50 min-h-[400px]">
@@ -207,7 +228,7 @@ export function ChatInterface({ threadId }) {
                             >
                                 <div
                                     className={`rounded-2xl px-5 py-3.5 shadow-sm text-sm leading-relaxed ${msg.type === 'human'
-                                        ? 'bg-black dark:bg-white text-white dark:text-black rounded-br-none max-w-[85%] sm:max-w-2xl'
+                                        ? 'bg-neutral-800 dark:bg-zinc-200 text-white dark:text-neutral-900 rounded-br-none max-w-[85%] sm:max-w-2xl'
                                         : 'bg-white dark:bg-neutral-900 border border-gray-100 dark:border-neutral-800 text-gray-800 dark:text-neutral-200 rounded-bl-none w-full'
                                         }`}
                                 >
@@ -215,8 +236,8 @@ export function ChatInterface({ threadId }) {
                                         <span className="text-red-500">{msg.content}</span>
                                     ) : (
                                         <div className={`prose prose-sm max-w-none ${msg.type === 'human'
-                                            ? 'prose-invert dark:prose-neutral' // Human: Black bg (Light) -> Invert. White bg (Dark) -> Normal.
-                                            : 'dark:prose-invert' // AI: White bg (Light) -> Normal. Black bg (Dark) -> Invert.
+                                            ? 'prose-invert dark:prose-neutral' // Human: Dark bg (Light) -> Invert. Light bg (Dark) -> Normal.
+                                            : 'dark:prose-invert' // AI: White bg (Light) -> Normal. Dark bg (Dark) -> Invert.
                                             }`}>
                                             <ReactMarkdown>{msg.content}</ReactMarkdown>
                                         </div>
@@ -238,18 +259,18 @@ export function ChatInterface({ threadId }) {
 
                     {isLoading && !interrupt && (
                         <div className="flex justify-start">
-                            <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                            <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm">
                                 <RefreshCw className="animate-spin text-gray-400" size={16} />
-                                <span className="text-sm text-gray-500">Researching...</span>
+                                <span className="text-sm text-gray-500 dark:text-neutral-400">{loadingText}</span>
                             </div>
                         </div>
-                    )}
-                    <div ref={bottomRef} className="h-2" />
+                    )}                    {/* Spacer for floating input - ensures scrollToView leaves space */}
+                    <div ref={bottomRef} className="h-64 w-full block" />
                 </div>
             </div>
 
             {/* Input */}
-            <div className="p-4 sm:p-6 bg-white dark:bg-neutral-950 absolute bottom-0 left-0 right-0 z-20">
+            <div className="absolute bottom-0 left-0 right-0 z-20 p-4 sm:p-6 pt-12 bg-gradient-to-t from-white via-white to-transparent dark:from-neutral-950 dark:via-neutral-950 dark:to-transparent">
                 <div className="relative max-w-5xl mx-auto">
                     <textarea
                         value={input}
